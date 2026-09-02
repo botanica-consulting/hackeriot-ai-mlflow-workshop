@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
-    "test": "node --experimental-strip-types --test lib/game-engine.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",

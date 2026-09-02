@@ -1,11 +1,12 @@
-import { activeInstructions, AGENT_TOOLS, chooseDemoAction } from './agent-policy.server';
+import { activeInstructions, AGENT_TOOLS } from './agent-policy.server';
+import type { AgentProvider, ReasoningEffort } from './agent-provider.server';
 import { isAgentActionName, publicObservation } from './game-engine';
 import type { AgentAction, GameState, RunMode } from './workshop-types';
 
 interface AgentStepResult {
   action: AgentAction;
   model: string;
-  provider: 'openai' | 'demo';
+  provider: AgentProvider;
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
@@ -17,21 +18,14 @@ export async function runAgentStep(options: {
   strategy: string;
   imageDataUrl?: string;
   apiKey?: string;
+  provider: AgentProvider;
+  responsesUrl?: string;
+  extraHeaders?: Record<string, string>;
   model: string;
+  maxOutputTokens?: number;
+  reasoningEffort?: ReasoningEffort;
 }): Promise<AgentStepResult> {
   const started = Date.now();
-  if (!options.apiKey) {
-    const action = chooseDemoAction(options.state, options.runMode, options.strategy);
-    return {
-      action,
-      model: `${options.model} · simulated`,
-      provider: 'demo',
-      inputTokens: 620 + options.state.turns * 45 + (options.state.interfaceMode === 'visual' ? 520 : 80),
-      outputTokens: 42,
-      latencyMs: 180 + options.state.turns * 17,
-    };
-  }
-
   const content: Array<Record<string, unknown>> = [
     { type: 'input_text', text: `Current turn: ${options.state.turns + 1}\n${publicObservation(options.state)}\nChoose exactly one tool.` },
   ];
@@ -39,9 +33,17 @@ export async function runAgentStep(options: {
     content.push({ type: 'input_image', image_url: options.imageDataUrl, detail: 'low' });
   }
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  if (!options.apiKey || !options.responsesUrl) {
+    throw new Error(`${providerLabel(options.provider)} is selected but its API key is missing`);
+  }
+
+  const response = await fetch(options.responsesUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${options.apiKey}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${options.apiKey}`,
+      'Content-Type': 'application/json',
+      ...options.extraHeaders,
+    },
     body: JSON.stringify({
       model: options.model,
       instructions: activeInstructions(options.runMode, options.strategy),
@@ -49,15 +51,15 @@ export async function runAgentStep(options: {
       tools: AGENT_TOOLS,
       tool_choice: 'required',
       parallel_tool_calls: false,
-      reasoning: { effort: 'low' },
-      max_output_tokens: 300,
+      reasoning: { effort: options.reasoningEffort ?? 'low' },
+      max_output_tokens: options.maxOutputTokens ?? 300,
       store: false,
       safety_identifier: 'hackeriot-workshop-participant',
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI request failed with status ${response.status}`);
+    throw new Error(`${providerLabel(options.provider)} request failed (${response.status}): ${await safeErrorMessage(response)}`);
   }
 
   const payload = await response.json() as {
@@ -74,9 +76,33 @@ export async function runAgentStep(options: {
   return {
     action: { name: call.name, arguments: args, publicRationale: `Selected ${call.name} from the available evidence.` },
     model: payload.model ?? options.model,
-    provider: 'openai',
+    provider: options.provider,
     inputTokens: payload.usage?.input_tokens ?? 0,
     outputTokens: payload.usage?.output_tokens ?? 0,
     latencyMs: Date.now() - started,
   };
+}
+
+function providerLabel(provider: AgentProvider) {
+  return provider === 'openrouter' ? 'OpenRouter' : 'OpenAI';
+}
+
+async function safeErrorMessage(response: Response) {
+  try {
+    const payload = await response.json() as {
+      error?: { message?: string; metadata?: { raw?: string; provider_name?: string } } | string;
+      message?: string;
+    };
+    if (typeof payload.error === 'object' && payload.error?.metadata?.raw) {
+      try {
+        const upstream = JSON.parse(payload.error.metadata.raw) as { error?: { message?: string } };
+        const detail = upstream.error?.message;
+        if (detail) return `${payload.error.metadata.provider_name ?? 'Provider'}: ${detail}`.slice(0, 600);
+      } catch { /* keep the provider's top-level message */ }
+    }
+    const message = typeof payload.error === 'string' ? payload.error : payload.error?.message ?? payload.message;
+    return message?.slice(0, 600) ?? response.statusText;
+  } catch {
+    return response.statusText || 'Unknown provider error';
+  }
 }
