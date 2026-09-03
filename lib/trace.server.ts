@@ -1,4 +1,4 @@
-import type { AgentAction, GameState, RunMode, TraceSpan, WorkshopTrace } from './workshop-types';
+import type { AgentAction, AgentLevel, GameState, RunMode, TraceSpan, WorkshopTrace } from './workshop-types';
 
 export function createTrace(options: { sessionId: string; teamId: string; runMode: RunMode; promptVersion: number | null; model: string }): WorkshopTrace {
   const now = Date.now();
@@ -72,6 +72,7 @@ export function appendStepSpans(trace: WorkshopTrace, options: {
   toolOutput: Record<string, unknown>;
   toolCatalog: Array<{ name: string; description: string }>;
   participantStrategy?: string;
+  agentLevel?: AgentLevel;
 }) {
   const root = trace.spans[0];
   const end = Date.now();
@@ -91,7 +92,7 @@ export function appendStepSpans(trace: WorkshopTrace, options: {
     },
     {
       id: llmId, parentId: root.id, name: 'llm_call', type: 'LLM', startTime: start, endTime: end,
-      status: 'OK', inputs: { instructions: promptInput, observation_mode: options.before.interfaceMode, available_tools: options.toolCatalog },
+      status: 'OK', inputs: { instructions: promptInput, observation_mode: options.before.interfaceMode, available_tools: options.toolCatalog, configuration: { context_memory: options.agentLevel === 'black-box-b' ? 'disabled' : 'last tool result', available_tool_count: options.toolCatalog.length } },
       outputs: { selected_tool: options.action.name, public_rationale: options.action.publicRationale },
       attributes: { 'mlflow.spanType': 'LLM', 'gen_ai.request.model': options.model, provider: options.provider, input_tokens: options.inputTokens, output_tokens: options.outputTokens },
     },

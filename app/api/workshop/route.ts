@@ -6,7 +6,7 @@ import {
   savePrompt, saveSession, updateSession,
 } from '@/lib/repository.server';
 import { appendHumanActionSpans, createTrace } from '@/lib/trace.server';
-import type { AgentAction, RunMode, WorkshopSession, WorkshopSnapshot } from '@/lib/workshop-types';
+import type { AgentAction, AgentLevel, CustomToolDefinition, CustomToolField, RunMode, ScenarioFamily, WorkshopSession, WorkshopSnapshot } from '@/lib/workshop-types';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -38,8 +38,11 @@ export async function POST(request: Request) {
       if (runMode === 'participant' && promptVersion == null) return Response.json({ error: 'Save a participant strategy first.' }, { status: 400 });
       const id = crypto.randomUUID();
       const model = runMode === 'human' ? 'human-player' : provider.model;
+      const level = safeLevel(payload.level);
+      const scenarioFamily = safeScenarioFamily(payload.scenarioFamily);
+      const customTools = safeCustomTools(payload.customTools);
       const session: WorkshopSession = {
-        id, teamId, runMode, promptVersion, state: createInitialGameState(), createdAt: new Date().toISOString(),
+        id, teamId, runMode, promptVersion, level, customTools, state: createInitialGameState(undefined, scenarioFamily), createdAt: new Date().toISOString(),
         trace: createTrace({ sessionId: id, teamId, runMode, promptVersion, model }),
       };
       await saveSession(session);
@@ -60,8 +63,9 @@ export async function POST(request: Request) {
       };
       const before = structuredClone(session.state);
       const after = applyGameAction(before, action);
-      const toolOutput = toolOutputFor(action, after);
+      const toolOutput = toolOutputFor(action, after, session.customTools ?? []);
       session.state = after;
+      session.lastToolOutput = toolOutput;
       appendHumanActionSpans(session.trace, { before, after, action, toolOutput });
       await updateSession(session);
       return Response.json({ session, toolOutput });
@@ -111,4 +115,25 @@ function safeTeamId(value: string) {
 
 function isPlainObject(value: unknown): value is Record<string, string | number | boolean> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function safeLevel(value: unknown): AgentLevel {
+  return value === 'black-box-a' || value === 'black-box-b' ? value : 'clean';
+}
+
+function safeScenarioFamily(value: unknown): ScenarioFamily | 'random' {
+  return value === 'climate' || value === 'humidity' || value === 'nutrients' ? value : 'random';
+}
+
+function safeCustomTools(value: unknown): CustomToolDefinition[] {
+  if (!Array.isArray(value)) return [];
+  const allowedFields = new Set<CustomToolField>(['temperature', 'humidity', 'reservoir', 'water_path', 'control_access', 'security', 'objectives', 'scenario_rules']);
+  return value.slice(0, 3).flatMap((item, index) => {
+    if (!item || typeof item !== 'object') return [];
+    const source = item as Record<string, unknown>;
+    const slug = String(source.name ?? '').toLowerCase().replace(/^custom_/, '').replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').slice(0, 32);
+    const fields = Array.isArray(source.fields) ? source.fields.filter((field): field is CustomToolField => allowedFields.has(field as CustomToolField)).slice(0, 6) : [];
+    if (!slug || fields.length === 0) return [];
+    return [{ id: String(source.id ?? `custom-${index}`).slice(0, 60), name: `custom_${slug}`, description: String(source.description ?? 'Return selected greenhouse information.').slice(0, 240), fields }];
+  });
 }

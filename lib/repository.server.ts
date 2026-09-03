@@ -50,12 +50,14 @@ export async function getPrompt(teamId: string, version: number | null): Promise
 
 export async function saveSession(session: WorkshopSession) {
   const now = new Date().toISOString();
+  syncSessionMetadata(session);
   await db().prepare(`INSERT INTO sessions (id, team_id, run_mode, prompt_version, state_json, trace_json, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(session.id, session.teamId, session.runMode, session.promptVersion, JSON.stringify(session.state), JSON.stringify(session.trace), session.trace.status, session.createdAt, now).run();
 }
 
 export async function updateSession(session: WorkshopSession) {
+  syncSessionMetadata(session);
   await db().prepare('UPDATE sessions SET state_json = ?, trace_json = ?, status = ?, updated_at = ? WHERE id = ?')
     .bind(JSON.stringify(session.state), JSON.stringify(session.trace), session.trace.status, new Date().toISOString(), session.id).run();
 }
@@ -88,8 +90,16 @@ function mapPrompt(row: PromptRow): PromptVersion {
 }
 
 function mapSession(row: SessionRow): WorkshopSession {
+  const state = JSON.parse(row.state_json) as WorkshopSession['state'];
+  const stored = JSON.parse(row.trace_json) as WorkshopSession['trace'];
   return {
     id: row.id, teamId: row.team_id, runMode: row.run_mode as WorkshopSession['runMode'],
-    promptVersion: row.prompt_version, state: JSON.parse(row.state_json), trace: JSON.parse(row.trace_json), createdAt: row.created_at,
+    promptVersion: row.prompt_version, level: stored.level ?? 'clean', customTools: stored.customTools ?? [], lastToolOutput: stored.lastToolOutput, state, trace: stored, createdAt: row.created_at,
   };
+}
+
+function syncSessionMetadata(session: WorkshopSession) {
+  session.trace.level = session.level;
+  session.trace.customTools = session.customTools;
+  session.trace.lastToolOutput = session.lastToolOutput;
 }

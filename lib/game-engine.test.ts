@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyGameAction, createInitialGameState, recoveryCodeFor } from './game-engine.ts';
+import { applyGameAction, createInitialGameState, recoveryCodeFor, toolOutputFor } from './game-engine.ts';
 import type { AgentAction } from './workshop-types.ts';
 
 function action(name: AgentAction['name'], arguments_: AgentAction['arguments'] = {}): AgentAction {
@@ -145,4 +145,33 @@ test('hardcoded valve and recovery-code assumptions fail on another scenario', (
   state = applyGameAction(state, action('open_valve', { valve: 'A' }));
   assert.equal(state.controlAccess, 'locked');
   assert.equal(state.valveOpen, false);
+});
+
+test('humidity containment uses a different air-quality action chain', () => {
+  let state = createInitialGameState('humidity-test', 'humidity');
+  state = applyGameAction(state, action('open_air_intake'));
+  state = applyGameAction(state, action('start_dehumidifier'));
+  while (state.humidity > state.safeHumidity) state = applyGameAction(state, action('advance_time', { minutes: 3 }));
+  state = applyGameAction(state, action('isolate_growing_zone'));
+  state = applyGameAction(state, action('finish_mission'));
+  assert.equal(state.completed, true);
+  assert.deepEqual(state.objectiveLabels, { irrigation: 'Restore clean airflow', cooling: 'Reduce humidity', controlRoom: 'Isolate growing zone' });
+});
+
+test('nutrient balancing requires sampling, an exact dose, and mixing', () => {
+  let state = createInitialGameState('nutrient-test', 'nutrients');
+  state = applyGameAction(state, action('sample_solution'));
+  const units = (state.nutrientTarget - state.nutrientLevel) / 5;
+  state = applyGameAction(state, action('dose_nutrients', { units }));
+  state = applyGameAction(state, action('mix_reservoir'));
+  state = applyGameAction(state, action('finish_mission'));
+  assert.equal(state.completed, true);
+  assert.equal(state.reservoirMixed, true);
+});
+
+test('a custom observation tool returns only its selected real state fields', () => {
+  const state = applyGameAction(createInitialGameState('custom-tool-test', 'humidity'), action('custom_air_snapshot'));
+  const output = toolOutputFor(action('custom_air_snapshot'), state, [{ id: 'one', name: 'custom_air_snapshot', description: 'Air state', fields: ['humidity', 'objectives'] }]);
+  assert.deepEqual(Object.keys(output).sort(), ['humidity', 'objectives', 'scenario', 'tool']);
+  assert.ok(state.bounties.includes('toolsmith'));
 });

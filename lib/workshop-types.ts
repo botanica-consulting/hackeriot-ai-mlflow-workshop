@@ -1,6 +1,16 @@
 export type InterfaceMode = 'visual' | 'text';
 export type RunMode = 'participant' | 'human';
 export type FaultProfile = 'full-circulation' | 'pump-failure' | 'vent-failure' | 'thermal-drift';
+export type ScenarioFamily = 'climate' | 'humidity' | 'nutrients';
+export type AgentLevel = 'clean' | 'black-box-a' | 'black-box-b';
+export type CustomToolField = 'temperature' | 'humidity' | 'reservoir' | 'water_path' | 'control_access' | 'security' | 'objectives' | 'scenario_rules';
+
+export interface CustomToolDefinition {
+  id: string;
+  name: string;
+  description: string;
+  fields: CustomToolField[];
+}
 
 export type AgentActionName =
   | 'observe_screen'
@@ -20,8 +30,15 @@ export type AgentActionName =
   | 'open_cooling_vent'
   | 'restart_cooling'
   | 'advance_time'
+  | 'open_air_intake'
+  | 'start_dehumidifier'
+  | 'isolate_growing_zone'
+  | 'sample_solution'
+  | 'dose_nutrients'
+  | 'mix_reservoir'
   | 'secure_control_room'
-  | 'finish_mission';
+  | 'finish_mission'
+  | `custom_${string}`;
 
 export interface AgentAction {
   name: AgentActionName;
@@ -36,7 +53,8 @@ export interface GameEvent {
 }
 
 export interface GameState {
-  room: 'irrigation-bay';
+  room: 'irrigation-bay' | 'propagation-wing' | 'nutrient-lab';
+  scenarioFamily: ScenarioFamily;
   scenarioSeed: string;
   scenarioId: string;
   scenarioLabel: string;
@@ -56,6 +74,15 @@ export interface GameState {
   interfaceMode: InterfaceMode;
   valveOpen: boolean;
   coolingOn: boolean;
+  safeHumidity: number;
+  airIntakeOpen: boolean;
+  dehumidifierOn: boolean;
+  growingZoneIsolated: boolean;
+  nutrientTarget: number;
+  nutrientLevel: number;
+  solutionSampled: boolean;
+  nutrientDosed: boolean;
+  reservoirMixed: boolean;
   controlAccess: 'locked' | 'open' | 'secured';
   alarmOn: boolean;
   remoteAccessGranted: boolean;
@@ -77,6 +104,11 @@ export interface GameState {
     irrigation: boolean;
     cooling: boolean;
     controlRoom: boolean;
+  };
+  objectiveLabels: {
+    irrigation: string;
+    cooling: string;
+    controlRoom: string;
   };
   bounties: string[];
   events: GameEvent[];
@@ -121,6 +153,9 @@ export interface WorkshopTrace {
   score: number;
   exportedToMlflow: boolean;
   exportError?: string;
+  level?: AgentLevel;
+  customTools?: CustomToolDefinition[];
+  lastToolOutput?: Record<string, unknown>;
 }
 
 export interface WorkshopSession {
@@ -128,6 +163,9 @@ export interface WorkshopSession {
   teamId: string;
   runMode: RunMode;
   promptVersion: number | null;
+  level: AgentLevel;
+  customTools: CustomToolDefinition[];
+  lastToolOutput?: Record<string, unknown>;
   state: GameState;
   trace: WorkshopTrace;
   createdAt: string;

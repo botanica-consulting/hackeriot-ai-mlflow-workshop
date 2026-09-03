@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { AGENT_TOOLS } from '@/lib/agent-policy.server';
+import { agentToolsFor } from '@/lib/agent-policy.server';
 import { resolveAgentProvider } from '@/lib/agent-provider.server';
 import { applyGameAction, normalizeGameState, toolOutputFor } from '@/lib/game-engine';
 import { exportToMlflow } from '@/lib/mlflow-export.server';
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   try {
     result = await runAgentStep({
-      state: before, runMode: session.runMode, strategy, imageDataUrl: payload.imageDataUrl,
+      state: before, runMode: session.runMode, strategy, level: session.level ?? 'clean', customTools: session.customTools ?? [], lastToolOutput: session.lastToolOutput, imageDataUrl: payload.imageDataUrl,
       provider: provider.provider, apiKey: provider.apiKey, model: provider.model,
       responsesUrl: provider.responsesUrl, extraHeaders: provider.extraHeaders,
       maxOutputTokens: provider.maxOutputTokens, reasoningEffort: provider.reasoningEffort,
@@ -36,13 +36,15 @@ export async function POST(request: Request) {
   }
 
   const nextState = applyGameAction(before, result.action);
-  const toolOutput = toolOutputFor(result.action, nextState);
+  const toolOutput = toolOutputFor(result.action, nextState, session.customTools ?? []);
   session.state = nextState;
+  session.lastToolOutput = toolOutput;
   appendStepSpans(session.trace, {
     before, after: nextState, action: result.action, model: result.model, provider: result.provider,
     inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: result.latencyMs,
     toolOutput, participantStrategy: strategy,
-    toolCatalog: AGENT_TOOLS.map((tool) => ({ name: tool.name, description: tool.description })),
+    agentLevel: session.level ?? 'clean',
+    toolCatalog: agentToolsFor(before, session.customTools ?? [], session.level ?? 'clean').map((tool) => ({ name: tool.name, description: tool.description })),
   });
 
   if (nextState.completed || nextState.failed) {

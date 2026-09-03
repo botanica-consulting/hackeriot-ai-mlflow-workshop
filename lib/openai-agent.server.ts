@@ -1,7 +1,7 @@
-import { activeInstructions, AGENT_TOOLS } from './agent-policy.server';
+import { activeInstructions, agentToolsFor } from './agent-policy.server';
 import type { AgentProvider, ReasoningEffort } from './agent-provider.server';
 import { isAgentActionName, publicObservation } from './game-engine';
-import type { AgentAction, GameState, RunMode } from './workshop-types';
+import type { AgentAction, AgentLevel, CustomToolDefinition, GameState, RunMode } from './workshop-types';
 
 interface AgentStepResult {
   action: AgentAction;
@@ -16,6 +16,9 @@ export async function runAgentStep(options: {
   state: GameState;
   runMode: RunMode;
   strategy: string;
+  level: AgentLevel;
+  customTools: CustomToolDefinition[];
+  lastToolOutput?: Record<string, unknown>;
   imageDataUrl?: string;
   apiKey?: string;
   provider: AgentProvider;
@@ -27,7 +30,7 @@ export async function runAgentStep(options: {
 }): Promise<AgentStepResult> {
   const started = Date.now();
   const content: Array<Record<string, unknown>> = [
-    { type: 'input_text', text: `Current turn: ${options.state.turns + 1}\n${publicObservation(options.state)}\nChoose exactly one tool.` },
+    { type: 'input_text', text: `Current turn: ${options.state.turns + 1}\n${publicObservation(options.state)}${options.level !== 'black-box-b' && options.lastToolOutput ? `\nPrevious tool result: ${JSON.stringify(options.lastToolOutput)}` : ''}\nChoose exactly one tool.` },
   ];
   if (options.state.interfaceMode === 'visual' && options.imageDataUrl?.startsWith('data:image/png')) {
     content.push({ type: 'input_image', image_url: options.imageDataUrl, detail: 'low' });
@@ -46,9 +49,9 @@ export async function runAgentStep(options: {
     },
     body: JSON.stringify({
       model: options.model,
-      instructions: activeInstructions(options.runMode, options.strategy),
+      instructions: activeInstructions(options.runMode, options.strategy, options.level),
       input: [{ role: 'user', content }],
-      tools: AGENT_TOOLS,
+      tools: agentToolsFor(options.state, options.customTools, options.level),
       tool_choice: 'required',
       parallel_tool_calls: false,
       reasoning: { effort: options.reasoningEffort ?? 'low' },
