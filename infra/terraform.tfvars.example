@@ -1,0 +1,18 @@
+aws_profile = "default"
+aws_region  = "eu-central-1"
+
+project_name    = "greenhouse-workshop"
+environment     = "workshop"
+instance_type   = "r7i.2xlarge"
+root_volume_size = 40
+data_volume_size = 100
+
+# Set these to use a non-default VPC or a specific public subnet.
+vpc_id    = null
+subnet_id = null
+
+cloudflare_account_id = "replace-with-cloudflare-account-id"
+cloudflare_zone_id    = "replace-with-botanica-tools-zone-id"
+domain                = "botanica.tools"
+tunnel_name           = "greenhouse-workshop"
+participant_count     = 50

@@ -46,3 +46,13 @@ npm test
 npm run typecheck
 npm run build
 ```
+
+Run the online system test against a deployed participant instance:
+
+```bash
+WORKSHOP_URL=https://greenhouse-01.botanica.tools \
+WORKSHOP_ACCESS_CODE=women-in-tech-shape-the-future \
+npm run test:system
+```
+
+The test authenticates through the gateway, solves all three level-one trials with the live model, and verifies that every trace was exported to that participant's MLflow instance.

@@ -1,0 +1,16 @@
+entryPoints:
+  web:
+    address: ":80"
+
+ping:
+  entryPoint: web
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+accessLog: {}
+
+log:
+  level: INFO

@@ -38,3 +38,10 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/docker-compose.generated.json
+/deployment/generated/
+/infra/.terraform/
+/infra/*.tfstate
+/infra/*.tfstate.*
+/infra/*.tfplan
+/infra/terraform.tfvars

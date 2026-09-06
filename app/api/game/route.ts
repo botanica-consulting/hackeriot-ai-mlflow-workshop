@@ -1,8 +1,16 @@
-import { env } from 'cloudflare:workers';
-import { resolveAgentProvider } from '@/lib/agent-provider.server';
+import { resolveAgentProvider, type AgentProviderEnvironment } from '@/lib/agent-provider.server';
 import { exportToMlflow } from '@/lib/mlflow-export.server';
 import { getLevel, LAB_LEVELS } from '@/lib/prompt-lab';
 import { runTrial } from '@/lib/prompt-lab.server';
+
+type RuntimeEnvironment = AgentProviderEnvironment & {
+  MLFLOW_TRACKING_URI?: string;
+  MLFLOW_PUBLIC_URL?: string;
+  MLFLOW_EXPERIMENT_ID?: string;
+  MLFLOW_EXPERIMENT_NAME?: string;
+};
+
+const env = process.env as RuntimeEnvironment;
 
 export async function GET() {
   const provider = resolveAgentProvider(env);
@@ -18,7 +26,7 @@ export async function GET() {
       liveModelAvailable: provider.live,
       model: provider.model,
       mlflowConfigured: Boolean(env.MLFLOW_TRACKING_URI),
-      mlflowUrl: env.MLFLOW_TRACKING_URI,
+      mlflowUrl: env.MLFLOW_PUBLIC_URL ?? env.MLFLOW_TRACKING_URI,
     },
   });
 }
