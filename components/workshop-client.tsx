@@ -127,7 +127,7 @@ export function WorkshopClient() {
             </div>
             <div>
               <h1 className="text-lg font-semibold tracking-tight">Prompt Lab</h1>
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/35">Level 0{level.id} · {level.title}</p>
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-white/45">Level 0{level.id} · {level.title}</p>
             </div>
           </div>
 
@@ -141,7 +141,7 @@ export function WorkshopClient() {
                   aria-current={item.id === level.id ? 'step' : undefined}
                   disabled={item.id > unlockedLevel}
                   onClick={() => setLevelId(item.id)}
-                  className={`grid size-7 place-items-center rounded-full border font-mono text-[11px] transition ${item.id === level.id ? 'border-[#c7ff3f] bg-[#c7ff3f] text-[#10120c]' : item.id <= unlockedLevel ? 'border-white/25 text-white/65 hover:border-white/50' : 'cursor-not-allowed border-white/10 text-white/20'}`}
+                  className={`grid size-8 place-items-center rounded-full border font-mono text-xs transition ${item.id === level.id ? 'border-[#c7ff3f] bg-[#c7ff3f] text-[#10120c]' : item.id <= unlockedLevel ? 'border-white/25 text-white/65 hover:border-white/50' : 'cursor-not-allowed border-white/10 text-white/25'}`}
                 >
                   {item.id}
                 </button>
@@ -149,7 +149,7 @@ export function WorkshopClient() {
             </nav>
             <div className="h-7 w-px bg-white/10" />
             <div className="text-right">
-              <p className="font-mono text-[9px] tracking-[0.22em] text-white/40">SCORE</p>
+              <p className="font-mono text-xs tracking-[0.18em] text-white/45">SCORE</p>
               <p className="font-mono text-xl font-semibold leading-none text-[#c7ff3f]">{score}<span className="text-xs text-white/30"> / 300</span></p>
             </div>
           </div>
@@ -230,27 +230,27 @@ function TrialCard({ trial, number, prompt, status, result, mlflowUrl, onPromptC
       <div className={`absolute inset-x-0 top-0 h-1 ${isPassed ? 'bg-[#52e394]' : isFailed ? 'bg-[#ff6b6b]' : 'bg-white/15'}`} />
       <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-[10px] text-white/28">0{number}</span>
-          <span className="font-mono text-[11px] font-semibold tracking-[0.2em] text-white/72">{trial.label}</span>
+          <span className="font-mono text-xs text-white/35">0{number}</span>
+          <span className="font-mono text-xs font-semibold tracking-[0.16em] text-white/75">{trial.label}</span>
         </div>
         <Status status={status} />
       </div>
 
       <div className="flex flex-1 flex-col gap-5 p-5">
         <div className="flex flex-1 flex-col gap-2">
-          <span className="font-mono text-[9px] font-semibold tracking-[0.2em] text-white/35">PROMPT</span>
+          <span className="font-mono text-xs font-semibold tracking-[0.16em] text-white/45">PROMPT</span>
           <Textarea
             aria-label={`${trial.label} prompt`}
             value={prompt}
             disabled={status === 'running'}
             onChange={(event) => onPromptChange(event.target.value)}
-            className="min-h-[116px] flex-1 resize-none rounded-xl border-white/10 bg-black/20 p-4 text-[15px] leading-6 text-white/90 focus-visible:border-[#8d82ff] focus-visible:ring-[#8d82ff]/20"
+            className="min-h-[116px] flex-1 resize-none rounded-xl border-white/10 bg-black/20 p-4 text-base leading-6 text-white/90 focus-visible:border-[#8d82ff] focus-visible:ring-[#8d82ff]/20"
           />
         </div>
 
         <div>
-          <p className="mb-2 font-mono text-[9px] font-semibold tracking-[0.2em] text-white/35">AI TOOL CALL</p>
-          <code className={`block min-h-[54px] rounded-xl border px-3 py-3 font-mono text-[11px] leading-5 ${isPassed ? 'border-[#52e394]/15 bg-[#52e394]/[0.055] text-[#8ceab6]' : isFailed ? 'border-[#ff6b6b]/18 bg-[#ff6b6b]/[0.06] text-[#ff9999]' : 'border-white/8 bg-white/[0.025] text-white/36'}`}>
+          <p className="mb-2 font-mono text-xs font-semibold tracking-[0.16em] text-white/45">AI TOOL CALL</p>
+          <code className={`block min-h-[54px] rounded-xl border px-3 py-3 font-mono text-[13px] leading-5 ${isPassed ? 'border-[#52e394]/15 bg-[#52e394]/[0.055] text-[#8ceab6]' : isFailed ? 'border-[#ff6b6b]/18 bg-[#ff6b6b]/[0.06] text-[#ff9999]' : 'border-white/8 bg-white/[0.025] text-white/45'}`}>
             {call}
           </code>
         </div>
@@ -258,9 +258,9 @@ function TrialCard({ trial, number, prompt, status, result, mlflowUrl, onPromptC
 
       <div className="flex items-center justify-end border-t border-white/[0.07] px-5 py-3.5">
         {result?.exportedToMlflow && mlflowUrl ? (
-          <a href={mlflowUrl} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-[9px] font-semibold tracking-[0.12em] text-[#8d82ff] hover:text-[#b1aaff]">MLFLOW ↗</a>
+          <a href={mlflowUrl} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-xs font-semibold tracking-[0.1em] text-[#8d82ff] hover:text-[#b1aaff]">MLFLOW ↗</a>
         ) : (
-          <span className="shrink-0 font-mono text-[9px] tracking-[0.12em] text-white/18">MLFLOW</span>
+          <span className="shrink-0 font-mono text-xs tracking-[0.1em] text-white/25">MLFLOW</span>
         )}
       </div>
     </article>
@@ -268,9 +268,9 @@ function TrialCard({ trial, number, prompt, status, result, mlflowUrl, onPromptC
 }
 
 function Status({ status }: { status: TrialStatus }) {
-  if (status === 'passed') return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#52e394]/10 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.12em] text-[#7ce8aa]"><Check className="size-3" /> PASSED</span>;
-  if (status === 'failed') return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ff6b6b]/10 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.12em] text-[#ff8d8d]"><TriangleAlert className="size-3" /> REVIEW</span>;
-  return <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.12em] text-white/38"><Circle className={`size-2.5 ${status === 'running' ? 'animate-pulse fill-current' : ''}`} /> {status === 'running' ? 'RUNNING' : 'READY'}</span>;
+  if (status === 'passed') return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#52e394]/10 px-2.5 py-1 font-mono text-xs font-semibold tracking-[0.1em] text-[#7ce8aa]"><Check className="size-3" /> PASSED</span>;
+  if (status === 'failed') return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ff6b6b]/10 px-2.5 py-1 font-mono text-xs font-semibold tracking-[0.1em] text-[#ff8d8d]"><TriangleAlert className="size-3" /> REVIEW</span>;
+  return <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 font-mono text-xs font-semibold tracking-[0.1em] text-white/45"><Circle className={`size-2.5 ${status === 'running' ? 'animate-pulse fill-current' : ''}`} /> {status === 'running' ? 'RUNNING' : 'READY'}</span>;
 }
 
 function defaultPrompts(levels: PublicLevel[]) {
