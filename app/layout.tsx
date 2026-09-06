@@ -14,17 +14,17 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.SITE_URL ?? 'http://localhost:3000'),
-  title: 'Greenhouse Lockdown',
-  description: 'A hands-on AI agent security workshop for Hackeriot.',
+  title: 'Prompt Lab · MLflow Workshop',
+  description: 'An AI-only prompt debugging game for learning MLflow.',
   openGraph: {
-    title: 'Greenhouse Lockdown',
-    description: 'Hackeriot AI Security Workshop',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Greenhouse Lockdown — Hackeriot AI Security Workshop' }],
+    title: 'Prompt Lab · MLflow Workshop',
+    description: 'Run AI agents, inspect their traces, and fix the prompt.',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Prompt Lab · MLflow Workshop' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Greenhouse Lockdown',
-    description: 'Hackeriot AI Security Workshop',
+    title: 'Prompt Lab · MLflow Workshop',
+    description: 'Run AI agents, inspect their traces, and fix the prompt.',
     images: ['/og.png'],
   },
 };

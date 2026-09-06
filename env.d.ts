@@ -1,6 +1,5 @@
 declare namespace Cloudflare {
   interface Env {
-    DB: D1Database;
     AI_PROVIDER?: string;
     AI_MAX_OUTPUT_TOKENS?: string;
     AI_REASONING_EFFORT?: string;

@@ -1,4 +1,4 @@
-import type { TraceSpan, WorkshopTrace } from './workshop-types';
+import type { LabTrace } from './prompt-lab.server';
 
 interface MlflowConfig {
   trackingUri?: string;
@@ -6,69 +6,133 @@ interface MlflowConfig {
   experimentName?: string;
 }
 
-export async function exportToMlflow(trace: WorkshopTrace, config: MlflowConfig): Promise<{ exported: boolean; error?: string }> {
-  if (!config.trackingUri) return { exported: false };
+type MlflowTraceResponse = {
+  trace?: { trace_info?: { tags?: Record<string, string> } };
+};
+
+export async function exportToMlflow(
+  trace: LabTrace,
+  config: MlflowConfig,
+): Promise<{ exported: boolean; experimentId?: string; error?: string }> {
+  const trackingUri = config.trackingUri?.trim();
+  if (!trackingUri) return { exported: false };
+
   try {
-    const experimentId = config.experimentId ?? await resolveExperimentId(config.trackingUri, config.experimentName ?? 'AI Escape Room');
-    const url = `${config.trackingUri.replace(/\/$/, '')}/v1/traces`;
-    const response = await fetch(url, {
+    const base = trackingUri.replace(/\/$/, '');
+    const experimentId = config.experimentId?.trim()
+      || await resolveExperimentId(base, config.experimentName?.trim() || 'Prompt Lab');
+    const traceId = `tr-${hex(trace.id.replace(/^trace-/, ''), 32)}`;
+    const payload = {
+      trace: {
+        trace_info: {
+          trace_id: traceId,
+          trace_location: {
+            type: 'MLFLOW_EXPERIMENT',
+            mlflow_experiment: { experiment_id: experimentId },
+          },
+          request_time: new Date(trace.spans[0]?.startTime ?? Date.now()).toISOString(),
+          execution_duration: `${Math.max(1, trace.latencyMs) / 1000}s`,
+          state: trace.passed ? 'OK' : 'ERROR',
+          request_preview: JSON.stringify({ prompt: trace.prompt }),
+          response_preview: JSON.stringify({ passed: trace.passed, score: trace.score }),
+          trace_metadata: {
+            'mlflow.trace_schema.version': '3',
+            'mlflow.trace.tokenUsage': JSON.stringify({
+              input_tokens: trace.tokenUsage.input,
+              output_tokens: trace.tokenUsage.output,
+              total_tokens: trace.tokenUsage.total,
+            }),
+          },
+          tags: {
+            'workshop.level': String(trace.levelId),
+            'workshop.trial': trace.trialId,
+            'workshop.result': trace.passed ? 'passed' : 'failed',
+          },
+          assessments: [],
+        },
+      },
+    };
+
+    const created = await fetch(`${base}/api/3.0/mlflow/traces`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-mlflow-experiment-id': experimentId },
-      body: JSON.stringify(toOtlp(trace)),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error(`MLflow OTLP endpoint returned ${response.status}`);
-    return { exported: true };
+    if (!created.ok) throw new Error(`MLflow returned ${created.status}: ${(await created.text()).slice(0, 300)}`);
+
+    const response = await created.json() as MlflowTraceResponse;
+    const artifactUri = response.trace?.trace_info?.tags?.['mlflow.artifactLocation'];
+    if (!artifactUri) throw new Error('MLflow did not return a trace artifact location');
+
+    const uploaded = await fetch(artifactUrl(base, artifactUri), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spans: trace.spans.map((span) => toMlflowSpan(trace, span)) }),
+    });
+    if (!uploaded.ok) throw new Error(`MLflow trace upload returned ${uploaded.status}: ${(await uploaded.text()).slice(0, 300)}`);
+
+    return { exported: true, experimentId };
   } catch (error) {
-    return { exported: false, error: error instanceof Error ? error.message : 'Unknown MLflow export error' };
+    return { exported: false, error: error instanceof Error ? error.message : 'MLflow export failed' };
   }
 }
 
-async function resolveExperimentId(uri: string, name: string) {
-  const base = uri.replace(/\/$/, '');
+async function resolveExperimentId(base: string, name: string) {
   const lookup = await fetch(`${base}/api/2.0/mlflow/experiments/get-by-name?experiment_name=${encodeURIComponent(name)}`);
   if (lookup.ok) {
     const payload = await lookup.json() as { experiment?: { experiment_id?: string } };
     if (payload.experiment?.experiment_id) return payload.experiment.experiment_id;
   }
+
   const created = await fetch(`${base}/api/2.0/mlflow/experiments/create`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
   });
-  if (!created.ok) throw new Error(`Could not create MLflow experiment (${created.status})`);
+  if (!created.ok) {
+    const concurrent = await fetch(`${base}/api/2.0/mlflow/experiments/get-by-name?experiment_name=${encodeURIComponent(name)}`);
+    if (concurrent.ok) {
+      const payload = await concurrent.json() as { experiment?: { experiment_id?: string } };
+      if (payload.experiment?.experiment_id) return payload.experiment.experiment_id;
+    }
+    throw new Error(`Could not create the MLflow experiment (${created.status})`);
+  }
   const payload = await created.json() as { experiment_id?: string };
   if (!payload.experiment_id) throw new Error('MLflow did not return an experiment id');
   return payload.experiment_id;
 }
 
-function toOtlp(trace: WorkshopTrace) {
+function toMlflowSpan(trace: LabTrace, span: LabTrace['spans'][number]) {
+  const traceHex = hex(trace.id.replace(/^trace-/, ''), 32);
   return {
-    resourceSpans: [{
-      resource: { attributes: [attribute('service.name', 'ai-escape-room'), attribute('workshop.team_id', trace.teamId)] },
-      scopeSpans: [{
-        scope: { name: 'ai-escape-room', version: '1.0.0' },
-        spans: trace.spans.map((span) => otlpSpan(trace, span)),
-      }],
-    }],
+    trace_id: base64Hex(traceHex),
+    span_id: base64Hex(hex(span.id, 16)),
+    parent_span_id: span.parentId ? base64Hex(hex(span.parentId, 16)) : '',
+    name: span.name,
+    start_time_unix_nano: String(BigInt(span.startTime) * BigInt(1_000_000)),
+    end_time_unix_nano: String(BigInt(Math.max(span.endTime, span.startTime + 1)) * BigInt(1_000_000)),
+    status: { code: span.status === 'OK' ? 'STATUS_CODE_OK' : 'STATUS_CODE_ERROR' },
+    attributes: {
+      'mlflow.spanType': span.type,
+      'mlflow.spanInputs': JSON.stringify(span.inputs),
+      'mlflow.spanOutputs': JSON.stringify(span.outputs),
+      'workshop.prompt': trace.prompt,
+      'workshop.score': trace.score,
+      ...span.attributes,
+    },
+    events: [],
   };
 }
 
-function otlpSpan(trace: WorkshopTrace, span: TraceSpan) {
-  return {
-    traceId: hex(trace.id, 32), spanId: hex(span.id, 16), parentSpanId: span.parentId ? hex(span.parentId, 16) : undefined,
-    name: span.name, kind: 1, startTimeUnixNano: `${span.startTime}000000`, endTimeUnixNano: `${span.endTime}000000`,
-    attributes: [
-      attribute('mlflow.spanType', span.type),
-      attribute('mlflow.spanInputs', JSON.stringify(span.inputs)),
-      attribute('mlflow.spanOutputs', JSON.stringify(span.outputs)),
-      ...Object.entries(span.attributes ?? {}).map(([key, value]) => attribute(key, value)),
-    ],
-    status: { code: span.status === 'OK' ? 1 : 2 },
-  };
+function artifactUrl(base: string, uri: string) {
+  const parsed = new URL(uri);
+  if (parsed.protocol !== 'mlflow-artifacts:') throw new Error(`Unsupported MLflow artifact URI: ${parsed.protocol}`);
+  return `${base}/api/2.0/mlflow-artifacts/artifacts${parsed.pathname}/traces.json`;
 }
 
-function attribute(key: string, value: string | number | boolean) {
-  if (typeof value === 'number') return { key, value: { doubleValue: value } };
-  if (typeof value === 'boolean') return { key, value: { boolValue: value } };
-  return { key, value: { stringValue: value } };
+function base64Hex(value: string) {
+  const bytes = Array.from({ length: value.length / 2 }, (_, index) => Number.parseInt(value.slice(index * 2, index * 2 + 2), 16));
+  return btoa(String.fromCharCode(...bytes));
 }
 
 function hex(value: string, length: number) {
