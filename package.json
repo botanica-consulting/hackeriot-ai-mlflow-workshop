@@ -8,9 +8,11 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "start": "vinext start",
+    "start:worker": "wrangler dev --config dist/server/wrangler.json",
     "test": "node --experimental-strip-types --test lib/*.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
+    "test:system": "node scripts/system-online.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "format": "oxfmt"

@@ -258,7 +258,7 @@ function TrialCard({ trial, number, prompt, status, result, mlflowUrl, onPromptC
 
       <div className="flex items-center justify-end border-t border-white/[0.07] px-5 py-3.5">
         {result?.exportedToMlflow && mlflowUrl ? (
-          <a href="http://127.0.0.1:5050/#/experiments/1/traces" target="_blank" rel="noreferrer" className="shrink-0 font-mono text-[9px] font-semibold tracking-[0.12em] text-[#8d82ff] hover:text-[#b1aaff]">MLFLOW ↗</a>
+          <a href={mlflowUrl} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-[9px] font-semibold tracking-[0.12em] text-[#8d82ff] hover:text-[#b1aaff]">MLFLOW ↗</a>
         ) : (
           <span className="shrink-0 font-mono text-[9px] tracking-[0.12em] text-white/18">MLFLOW</span>
         )}
