@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -xeuo pipefail
 
 cd "$(dirname "$0")/.."
 
@@ -105,5 +105,7 @@ if (( wait_status != 0 )); then
     --query StandardErrorContent --output text >&2
   exit "$wait_status"
 fi
+
+docker buildx imagetools create --tag "$repository_url:latest" "$image_uri"
 
 echo "Deployed $image_uri"

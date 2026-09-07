@@ -9,7 +9,7 @@ AWS:
 - Ubuntu 24.04 EC2 instance, default `r7i.2xlarge`
 - Security group with no ingress and unrestricted outbound traffic
 - IAM instance role for SSM, ECR pulls, and one Secrets Manager secret
-- Immutable ECR repository with scan-on-push and a 20-image lifecycle policy
+- ECR repository with immutable release tags, a movable `latest` tag, scan-on-push, and a 30-day lifecycle policy for superseded images
 - Encrypted root volume
 - Separate encrypted persistent gp3 volume for Docker and all MLflow data
 - Secrets Manager secret container for the shared `.env`
@@ -134,6 +134,7 @@ This command:
 5. Transfers the small deployment bundle to EC2 using SSM Run Command.
 6. Runs the on-server redeploy script.
 7. Waits for all 102 containers to be running and all health checks to pass.
+8. Moves the `latest` tag to the successfully deployed image. ECR always retains that image and expires superseded images after 30 days.
 
 To choose an explicit immutable image tag:
 

@@ -10,7 +10,7 @@ output "instance_public_ip" {
 
 output "ecr_repository_url" {
   value       = aws_ecr_repository.app.repository_url
-  description = "ECR repository for immutable app images."
+  description = "ECR repository with immutable release tags and a movable latest tag."
 }
 
 output "environment_secret_arn" {
