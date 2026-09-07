@@ -20,6 +20,17 @@ type GameConfig = {
   configuration: { liveModelAvailable: boolean; model: string; mlflowConfigured: boolean; mlflowUrl?: string };
 };
 
+type PersistedGameState = {
+  version: 1;
+  levelId: number;
+  unlockedLevel: number;
+  prompts: Record<string, string>;
+  allowedTools: Record<number, string[]>;
+  results: Record<string, TrialRun>;
+};
+
+const STORAGE_KEY = 'prompt-lab:game-state';
+
 const fallbackConfig: GameConfig = {
   levels: LAB_LEVELS.map((level) => ({
     id: level.id,
@@ -40,6 +51,27 @@ export function WorkshopClient() {
   const [results, setResults] = useState<Record<string, TrialRun>>({});
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [storageLoaded, setStorageLoaded] = useState(false);
+
+  useEffect(() => {
+    const restored = loadGameState(fallbackConfig.levels);
+    const frame = window.requestAnimationFrame(() => {
+      if (restored) {
+        setLevelId(restored.levelId);
+        setUnlockedLevel(restored.unlockedLevel);
+        setPrompts(restored.prompts);
+        setAllowedTools(restored.allowedTools);
+        setResults(restored.results);
+      }
+      setStorageLoaded(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!storageLoaded) return;
+    saveGameState({ version: 1, levelId, unlockedLevel, prompts, allowedTools, results });
+  }, [allowedTools, levelId, prompts, results, storageLoaded, unlockedLevel]);
 
   useEffect(() => {
     void fetch('/api/game')
@@ -283,4 +315,73 @@ function defaultAllowedTools(levels: PublicLevel[]) {
 
 function trialKey(levelId: number, trialId: string) {
   return `${levelId}:${trialId}`;
+}
+
+function loadGameState(levels: PublicLevel[]): PersistedGameState | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || value.version !== 1) return null;
+
+    const validLevelIds = levels.map((level) => level.id);
+    const maxLevel = Math.max(...validLevelIds);
+    const savedLevel = validLevelIds.includes(value.levelId as number) ? value.levelId as number : 1;
+    const savedUnlocked = typeof value.unlockedLevel === 'number' ? value.unlockedLevel : 1;
+    const unlockedLevel = Math.max(savedLevel, Math.min(maxLevel, Math.max(1, Math.trunc(savedUnlocked))));
+    const prompts = { ...defaultPrompts(levels), ...stringRecord(value.prompts) };
+    const allowedTools = restoreAllowedTools(value.allowedTools, levels);
+    const results = restoreResults(value.results, levels);
+
+    return { version: 1, levelId: savedLevel, unlockedLevel, prompts, allowedTools, results };
+  } catch {
+    return null;
+  }
+}
+
+function saveGameState(state: PersistedGameState) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage can be unavailable in private browsing or when the quota is full.
+  }
+}
+
+function restoreAllowedTools(value: unknown, levels: PublicLevel[]) {
+  const saved = isRecord(value) ? value : {};
+  return Object.fromEntries(levels.map((level) => {
+    const selected = saved[level.id];
+    if (!Array.isArray(selected)) return [level.id, level.tools];
+    return [level.id, level.tools.filter((tool) => selected.includes(tool))];
+  }));
+}
+
+function restoreResults(value: unknown, levels: PublicLevel[]) {
+  if (!isRecord(value)) return {};
+  const validKeys = new Set(levels.flatMap((level) => level.trials.map((trial) => trialKey(level.id, trial.id))));
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, TrialRun] => validKeys.has(entry[0]) && isTrialRun(entry[1])));
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
+
+function isTrialRun(value: unknown): value is TrialRun {
+  return isRecord(value)
+    && typeof value.trialId === 'string'
+    && typeof value.label === 'string'
+    && typeof value.prompt === 'string'
+    && (value.status === 'passed' || value.status === 'failed')
+    && typeof value.toolCall === 'string'
+    && typeof value.assistantMessage === 'string'
+    && typeof value.traceId === 'string'
+    && typeof value.score === 'number'
+    && typeof value.tokens === 'number'
+    && typeof value.latencyMs === 'number'
+    && typeof value.exportedToMlflow === 'boolean';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
